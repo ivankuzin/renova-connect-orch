@@ -1,0 +1,71 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: botuser
+      POSTGRES_PASSWORD: botpass
+      POSTGRES_DB: clinic
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - renova_net
+
+  redis:
+    image: redis:7
+    networks:
+      - renova_net
+
+  transform_api:
+    build: ../renova-connect-transform-api
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgresql://botuser:botpass@postgres/clinic
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "8000:8000"
+    networks:
+      - renova_net
+
+  collector:
+    build: ../renova-connect-collector
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgresql://botuser:botpass@postgres/clinic
+      REDIS_URL: redis://redis:6379
+      CLINICIA_API_URL: https://api.clinicia.com
+      CLINICIA_TOKEN: ${CLINICIA_TOKEN}
+    networks:
+      - renova_net
+
+  telegram_bot:
+    build: ../renova-connect-telegram-bot
+    depends_on:
+      - transform_api
+    environment:
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      API_URL: http://transform_api:8000
+    networks:
+      - renova_net
+
+  whatsapp_bot:
+    build: ../renova-connect-whatsapp-bot
+    depends_on:
+      - transform_api
+    environment:
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID}
+      API_URL: http://transform_api:8000
+    networks:
+      - renova_net
+
+volumes:
+  postgres_data:
+
+networks:
+  renova_net:
